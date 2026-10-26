@@ -1,0 +1,12 @@
+# Production Environment Overrides
+replicaCount: 3
+
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 8
+  targetCPUUtilizationPercentage: 50
+
+pdb:
+  enabled: true
+  minAvailable: 2

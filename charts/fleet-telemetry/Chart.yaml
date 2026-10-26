@@ -1,0 +1,13 @@
+apiVersion: v2
+name: fleet-telemetry
+description: Production-hardened Helm chart for the Fleet Telemetry Microservice
+type: application
+version: 1.0.0
+appVersion: "1.1.0"
+keywords:
+  - kubernetes
+  - devops
+  - microservice
+  - fleet-telemetry
+maintainers:
+  - name: Adil Hussain
