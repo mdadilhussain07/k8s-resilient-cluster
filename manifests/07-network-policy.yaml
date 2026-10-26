@@ -1,0 +1,23 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: db-zero-trust-policy
+  namespace: fleet-system
+  labels:
+    app.kubernetes.io/part-of: fleet-system
+spec:
+  # 1. Target Workload: Apply this firewall strictly to the PostgreSQL Pod(s)
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: postgres-db
+  policyTypes:
+    - Ingress
+  # 2. Whitelist Rule: ONLY allow TCP 5432 from fleet-telemetry pods
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: fleet-telemetry
+      ports:
+        - protocol: TCP
+          port: 5432

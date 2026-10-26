@@ -1,0 +1,63 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fleet-telemetry-deployment
+  namespace: fleet-system
+  labels:
+    app.kubernetes.io/name: fleet-telemetry
+    app.kubernetes.io/part-of: fleet-system
+    app.kubernetes.io/version: "1.1.0"
+spec:
+  replicas: 2 # Desired state: Run exactly 2 identical pods
+  revisionHistoryLimit: 5 # Keep 5 previous ReplicaSets for instant rollback
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1        # Can spin up 1 extra pod during upgrades (2+1=3 max)
+      maxUnavailable: 0  # Zero pods can be down during upgrades (Guarantees 0 downtime)
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: fleet-telemetry
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: fleet-telemetry
+    spec:
+      containers:
+        - name: telemetry-api
+          image: ghcr.io/mdadilhussain07/enterprise-ci-cd-fleet/fleet-telemetry:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8000
+              name: http-api
+          # Production Resource Boundaries (Prevents noisy-neighbor host starvation)
+          resources:
+            requests:
+              cpu: "100m"     # 0.1 CPU core reserved
+              memory: "64Mi"  # 64 MB RAM reserved
+            limits:
+              cpu: "300m"     # Throttle if exceeding 0.3 CPU
+              memory: "128Mi" # OOM-kill if exceeding 128 MB (cgroup limit)
+          env:
+            - name: DATABASE_URL
+              value: "postgresql://fleet_admin:HardenedFleetPassword2026!@db:5432/fleet_db"
+          # Kubernetes Health Probes (Self-Healing)
+# Liveness: Confirms the Uvicorn web server process is responsive
+          livenessProbe:
+            httpGet:
+              path: /api/v1/info
+              port: http-api
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+
+          # Readiness: Determines if the Pod can accept customer traffic
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http-api
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 3

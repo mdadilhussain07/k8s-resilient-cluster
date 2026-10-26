@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-pvc
+  namespace: fleet-system
+spec:
+  accessModes:
+    - ReadWriteOnce # Mounted as read-write by a single node at a time
+  resources:
+    requests:
+      storage: 1Gi

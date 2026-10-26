@@ -1,0 +1,40 @@
+# 1. Horizontal Pod Autoscaler (autoscaling/v2)
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: fleet-telemetry-hpa
+  namespace: fleet-system
+  labels:
+    app.kubernetes.io/part-of: fleet-system
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: fleet-telemetry-deployment
+  minReplicas: 2
+  maxReplicas: 6 # Caps max scale at 6 pods to stay within our Namespace ResourceQuota (10 pods max)
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 50 # Scale up when average CPU > 50% of requests (50m)
+  # Production Anti-Flapping Behavior (Prevents rapid scale-down thrashing after traffic spikes)
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 60 # Wait 60s after spike subsides before scaling down
+---
+# 2. PodDisruptionBudget (policy/v1)
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: fleet-telemetry-pdb
+  namespace: fleet-system
+  labels:
+    app.kubernetes.io/part-of: fleet-system
+spec:
+  minAvailable: 1 # Guarantees at least 1 replica stays online during voluntary node drains
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: fleet-telemetry

@@ -1,0 +1,65 @@
+# 1. Dedicated Identity for the Fleet Telemetry Microservice
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: fleet-telemetry-sa
+  namespace: fleet-system
+  labels:
+    app.kubernetes.io/part-of: fleet-system
+---
+# 2. Least-Privilege Role (Read-Only access to Pods and ConfigMaps in fleet-system; ZERO access to Secrets)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: fleet-telemetry-role
+  namespace: fleet-system
+rules:
+  - apiGroups: [""] # "" indicates the core API group
+    resources: ["pods", "services", "configmaps"]
+    verbs: ["get", "watch", "list"]
+---
+# 3. Bind the Role to the ServiceAccount
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: fleet-telemetry-rolebinding
+  namespace: fleet-system
+subjects:
+  - kind: ServiceAccount
+    name: fleet-telemetry-sa
+    namespace: fleet-system
+roleRef:
+  kind: Role
+  name: fleet-telemetry-role
+  apiGroup: rbac.authorization.k8s.io
+---
+# 4. Namespace ResourceQuota (Prevents fleet-system from starving the cluster)
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: fleet-namespace-quota
+  namespace: fleet-system
+spec:
+  hard:
+    requests.cpu: "1000m"    # Max total guaranteed CPU across all pods in fleet-system = 1 Core
+    requests.memory: "1Gi"   # Max total guaranteed RAM = 1 GiB
+    limits.cpu: "2000m"      # Max total burst CPU = 2 Cores
+    limits.memory: "2Gi"     # Max total burst RAM = 2 GiB
+    pods: "10"               # Max 10 Pods allowed in this namespace
+    persistentvolumeclaims: "5"
+---
+# 5. LimitRange (Automatically injects default CPU/RAM limits if a Pod forgets to define them!)
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: fleet-default-limits
+  namespace: fleet-system
+spec:
+  limits:
+    - type: Container
+      default:
+        cpu: "200m"
+        memory: "128Mi"
+      defaultRequest:
+        cpu: "50m"
+        memory: "64Mi"
