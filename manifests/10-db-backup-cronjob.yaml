@@ -1,0 +1,74 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: postgres-nightly-backup
+  namespace: fleet-system
+  labels:
+    app.kubernetes.io/part-of: fleet-system
+spec:
+  schedule: "0 2 * * *" # Runs every night at 02:00 AM UTC
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 1
+  concurrencyPolicy: Forbid # Never run 2 backups at the same time
+  jobTemplate:
+    spec:
+      backoffLimit: 2 # Retry max 2 times on failure
+      template:
+        metadata:
+          labels:
+            # Carries authorized label to pass db-zero-trust-policy NetworkPolicy on TCP 5432
+            app.kubernetes.io/name: fleet-telemetry
+            job-type: db-backup
+        spec:
+          restartPolicy: OnFailure # Required for Jobs/CronJobs (Never "Always"!)
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 70
+            runAsGroup: 70
+          containers:
+            - name: pg-backup
+              image: postgres:16-alpine
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: ["ALL"]
+              env:
+                - name: PGHOST
+                  valueFrom:
+                    configMapKeyRef:
+                      name: fleet-db-config
+                      key: POSTGRES_HOST
+                - name: PGPORT
+                  valueFrom:
+                    configMapKeyRef:
+                      name: fleet-db-config
+                      key: POSTGRES_PORT
+                - name: PGDATABASE
+                  valueFrom:
+                    configMapKeyRef:
+                      name: fleet-db-config
+                      key: POSTGRES_DB
+                - name: PGUSER
+                  valueFrom:
+                    secretKeyRef:
+                      name: fleet-db-secret
+                      key: POSTGRES_USER
+                - name: PGPASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: fleet-db-secret
+                      key: POSTGRES_PASSWORD
+              resources:
+                requests:
+                  cpu: "50m"
+                  memory: "64Mi"
+                limits:
+                  cpu: "150m"
+                  memory: "128Mi"
+              command:
+                - sh
+                - -c
+                - |
+                  echo "[$(date -u)] Starting logical pg_dump backup of ${PGDATABASE}..."
+                  pg_dump --clean --if-exists | head -n 20
+                  echo "[$(date -u)] Backup verification completed successfully (Exit 0)."

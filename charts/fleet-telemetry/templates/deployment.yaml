@@ -6,7 +6,9 @@ metadata:
   labels:
     {{- include "fleet-telemetry.labels" . | nindent 4 }}
 spec:
+  {{- if not .Values.autoscaling.enabled }}
   replicas: {{ .Values.replicaCount }}
+  {{- end }}
   revisionHistoryLimit: 5
   strategy:
     type: RollingUpdate
