@@ -1,0 +1,31 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: fleet-telemetry-gitops
+  namespace: argocd
+  # Finalizer ensures child resources are cleaned up if the Application is deleted
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  # 1. SOURCE: Your Live GitHub Repository & Helm Chart!
+  source:
+    repoURL: https://github.com/mdadilhussain07/k8s-resilient-cluster.git
+    targetRevision: main
+    path: charts/fleet-telemetry
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-prod.yaml
+  # 2. DESTINATION: Local Cluster, fleet-system Namespace
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: fleet-system
+  # 3. AUTOMATED GITOPS SYNC POLICY
+  syncPolicy:
+    automated:
+      prune: true      # Automatically delete resources removed from Git
+      selfHeal: true   # Automatically revert unauthorized manual kubectl edits!
+    syncOptions:
+      - CreateNamespace=false
+      - ApplyOutOfSyncOnly=true
